@@ -1,7 +1,5 @@
 import requests
-import pprint
-import time
-
+import json
 
 class VK:
 
@@ -14,22 +12,32 @@ class VK:
         url = 'https://api.vk.com/method/users.get'
         params = {'user_ids': self.id}
         response = requests.get(url, params={**self.params, **params})
-        # print(self.params)
         return response.json()
 
-    def get_photo(self, owner_id, album_id='profile'):
-        photo_list = []
-        url = f'https://api.vk.com/method/photos.get?owner_id={owner_id}&album_id={album_id}&photo_sizes=1&&access_token={self.token}&v={self.version}'
+    def get_photo(self, owner_id, album_id='profile', count=5):
+        """Метод загружает список ссылок из профиля VK, параметр count отвечает за количество возвращаемых ссылок
+        фотографий. Параметр album_id=profile возвращает ссылки на аватарки, параметр album_id=wall возвращает ссылки
+        со стены"""
+        photo_dict = []
+        url = f'https://api.vk.com/method/photos.get?owner_id={owner_id}&album_id={album_id}&photo_sizes=0' \
+              f'&extended=1&access_token={self.token}&v={self.version}'
         response = requests.get(url).json()
         photos = response['response']['items']
         for photo in photos:
             target_photo = None
             TYPES = 'smxopqryzw'
-            for photo in photo['sizes']:
-                if not target_photo or TYPES.find(photo['type']) > TYPES.find(
-                    target_photo['type']): target_photo = photo
-            photo_list.append(target_photo['url'])
-        return photo_list
+            for photo_size in photo['sizes']:
+                if not target_photo or TYPES.find(photo_size['type']) > TYPES.find(
+                        target_photo['type']): target_photo = photo_size
+            photo_dict.append({'url': target_photo['url'],
+                               'type': target_photo["type"],
+                               'width': target_photo["width"],
+                               'height': target_photo["height"],
+                               'likes': photo['likes']['count'],
+                               })
+        sorted_photo_dict = sorted(photo_dict, key=lambda x: x['height'])
+        return_count_items = sorted_photo_dict[-count:]
+        return return_count_items
 
 
 class Disk:
@@ -44,25 +52,44 @@ class Disk:
                                      "Authorization": self.access_token})
 
     def upload_for_link(self, folder_path, photo_urls):
+        log_create = []
         params_dir = {
             "path": f"{self.path}{folder_path}"
         }
         self.connect.put(self.url, params=params_dir).json()
-        count_photo = len(photo_urls)
+        status_photo = 1
+        count_name = 0
+        names_list = []
         for photo in photo_urls:
+            name = photo['likes']
+            if name not in names_list:
+                names_list.append(name)
+            else:
+                count_name += 1
             data = {
-                "path": f"{self.path}{folder_path}{count_photo}.jpg",
-                "url": photo
+                "path": f"{self.path}{folder_path}{name}_{count_name}.jpg",
+                "url": photo['url']
             }
+
+            log_create.append({'file_name':f"{name}_{count_name}.jpg",
+                                "size": photo['type']})
             request = self.connect.post(f"{self.url}/upload/", params=data)
-            count_photo += 1
+            print(f'Загружена фотография {status_photo} из {len(photo_urls)}')
+            status_photo += 1
+        log_file = open('log_result.json', encoding='utf-8', mode='w')
+        json.dump(log_create, log_file)
+        log_file.close()
 
 
-access_token = 'vk1.a.QY5W0U2hK6wrFcPsVeLI7SjwAub_-xhx6oLSaqUn_AmpPfD_5wekBhbRu02Lmvub7XePbSl2mR5c1ee5F2JRJc4ZVj9RUXc1KQkq6jFyrF1OFxdeDKLJL9NNIv5c7MLp8YU_lnDunjnF6UJj8_AEb7iee8IZ9onkROFrjwgaI4b4C5pFk7XV5mh9JR6amcrY_EhIFVpd7o1FOylpzDHe7Q'
+# Нужно ввести токен VK
+access_token = ''
 vk = VK(access_token)
 
-# по умолчнию стоит выгрузка profile, можно заменить на wall, saved
-photo_album = vk.get_photo(208804302)
+# по умолчнию стоит выгрузка profile, можно заменить на wall
+vk_id = int()
+photo_album = vk.get_photo(vk_id, count=5, album_id='wall')
 
-disk = Disk(access_token='OAuth y0_AgAAAAAQZZiXAADLWwAAAADvX0H79qDDqCAIRJe4UmswPfJhaRoufBw')
+# Нужно ввести токен Яндекс диска
+yandex_disk_token = ''
+disk = Disk(access_token=yandex_disk_token)
 disk.upload_for_link('/result/', photo_album)
