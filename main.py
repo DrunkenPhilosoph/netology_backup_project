@@ -85,8 +85,9 @@ class Disk:
 access_token = ''
 vk = VK(access_token)
 
-# по умолчнию стоит выгрузка profile, можно заменить на wall
+# Нужно ввести id пользователя vk
 vk_id = int()
+# по умолчнию стоит выгрузка profile, можно заменить на wall
 photo_album = vk.get_photo(vk_id, count=5, album_id='wall')
 
 # Нужно ввести токен Яндекс диска
